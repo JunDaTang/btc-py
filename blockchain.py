@@ -1,17 +1,21 @@
 """
 learn from:https://medium.com/@vanflymen/learn-blockchains-by-building-one-117428612f46
 """
+import argparse
 import hashlib
 import json
 from time import time
+from urllib.parse import urlparse
 from uuid import uuid4
 
+import requests
 from flask import Flask, jsonify, request
 
 class Blockchain(object):
     def __init__(self):
         self.current_transactions = []
         self.chain = []
+        self.nodes = set()
 
         # 创建一个创世块
         self.new_block(previous_hash = 1, proof = 100)
@@ -102,6 +106,76 @@ class Blockchain(object):
         guess_hash = hashlib.sha256(guess).hexdigest()
         return  guess_hash[:4] == "0000"
 
+    def register_node(self, address):
+        """
+        添加一个新的节点到节点列表中
+        :param address: <str> 节点的地址，例如：'http://192.168.0.5:5000'
+        :return: None
+        """
+
+        parsed_url = urlparse(address)
+        self.nodes.add(parsed_url.netloc)
+
+    def valid_chain(self, chain):
+        """
+        确定给定的区块链是否有效
+        :param chain: <list> A blockchain
+        :return: <bool> 有效为True，否则为Flase
+        """
+
+        last_block = chain[0]
+        current_index = 1
+
+        while current_index < len(chain):
+            block = chain[current_index]
+            print(f'{last_block}')
+            print(f'{block}')
+            print("\n--------------\n")
+
+            # 检查区块上的hash值是否正确
+            if block['previous_hash'] != self.hash(last_block):
+                return False
+
+            # 检查工作证明是否正确
+            if not self.valid_proof(last_block['proof'], block['proof']):
+                return False
+
+            last_block = block
+            current_index += 1
+
+        return True
+
+    def resolve_conflicts(self):
+        """
+        这是我们的共识算法，它解决了冲突，通过用网络中的最长链替换我们的链
+        :return: <bool> 我们的链被替换了为True,否则为False
+        """
+
+        neighbours = self.nodes
+        new_chain = None
+
+        # 我们只找比我们链长的链
+        max_length = len(self.chain)
+
+        # 从我们网络中的所有节点获取并验证它们的链
+        for node in neighbours:
+            response = requests.get(f'http://{node}/chain')
+
+            if response.status_code == 200:
+                length = response.json()['length']
+                chain = response.json()['chain']
+
+                # 检查是否它们的链更长，同时它们的链是有效的
+                if length > max_length and self.valid_chain(chain):
+                    max_length = length
+                    new_chain = chain
+
+        # 如果我们发现比我们更长且有效的新链就替换上
+        if new_chain:
+            self.chain = new_chain
+            return True
+
+        return False
 
 
 # 实例化我们的节点
@@ -166,5 +240,43 @@ def full_chain():
     }
     return jsonify(response), 200
 
+@app.route('/nodes/register', methods=['POST'])
+def register_nodes():
+    values = request.get_json()
+
+    nodes = values.get('nodes')
+    if nodes is None:
+        return  "Error: 请提供一个有效的节点列表", 400
+
+    for node in nodes:
+        blockchain.register_node(node)
+
+    response = {
+        'message' : "新节点们已被添加了",
+        'total_nodes' : list(blockchain.nodes),
+    }
+
+    return jsonify(response), 201
+
+@app.route('/nodes/resolve', methods = ['GET'])
+def consensus():
+    replaced = blockchain.resolve_conflicts()
+
+    if replaced:
+        response = {
+            'message':"我们的链已经被替换了",
+            'new_chain':blockchain.chain
+        }
+    else:
+        response = {
+            'message':"我们的链是权威的",
+            'chain':blockchain.chain
+        }
+
+    return jsonify(response), 200
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port = 5000)
+    parser = argparse.ArgumentParser()
+    parser.description = '请输入一个指定端口'
+    parser.add_argument("-p","--port", help="指定端口", dest="port", type=int, default=5000)
+    args = parser.parse_args()
+    app.run(host='0.0.0.0', port = args.port)

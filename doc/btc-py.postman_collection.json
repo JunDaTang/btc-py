@@ -1,12 +1,12 @@
 {
 	"info": {
-		"_postman_id": "f5091eb4-3b69-4664-9659-ee3fa0628bb2",
+		"_postman_id": "6b61a7d8-0da1-4d57-8cf0-c62fc9d3b2c8",
 		"name": "btc-py",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "http://10.168.1.208:5000/mine",
+			"name": "http://localhost:5000/mine",
 			"protocolProfileBehavior": {
 				"disabledSystemHeaders": {},
 				"disableBodyPruning": true
@@ -46,9 +46,29 @@
 		{
 			"name": "http://localhost:5000/transactions/new",
 			"request": {
-				"method": "GET",
+				"method": "POST",
 				"header": [],
-				"url": null
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n \"sender\": \"d4ee26eee15148ee92c6cd394edd974e\",\r\n \"recipient\": \"someone-other-address1\",\r\n \"amount\": 7\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:5000/transactions/new",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "5000",
+					"path": [
+						"transactions",
+						"new"
+					]
+				}
 			},
 			"response": []
 		},
